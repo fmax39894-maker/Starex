@@ -2,17 +2,30 @@ export function validateUrls(urls) {
 
     const valid = [];
 
-    for (const url of urls) {
+    if (!Array.isArray(urls))
+        return valid;
+
+    for (let url of urls) {
+
+        if (!url)
+            continue;
+
+        url = url.trim();
+
+        if (!url)
+            continue;
 
         try {
 
-            const u = new URL(url);
+            const parsed = new URL(url);
 
             if (
-                u.protocol === "http:" ||
-                u.protocol === "https:"
+                parsed.protocol === "http:" ||
+                parsed.protocol === "https:"
             ) {
-                valid.push(u.href);
+
+                valid.push(parsed.href);
+
             }
 
         } catch {
@@ -23,6 +36,7 @@ export function validateUrls(urls) {
 
     }
 
-    return valid;
+    // Remove duplicate URLs
+    return [...new Set(valid)];
 
 }
