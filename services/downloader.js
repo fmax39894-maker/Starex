@@ -12,7 +12,14 @@ export async function downloadImages(imageUrls, req) {
 
     const results = [];
 
+    const MAX_PARALLEL = 10;
+
+for (let i = 0; i < imageUrls.length; i += MAX_PARALLEL) {
+
+    const batch = imageUrls.slice(i, i + MAX_PARALLEL);
+
     await Promise.all(
+        batch.map(async (url) => {
 
         imageUrls.map(async (url) => {
 
