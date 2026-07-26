@@ -1,14 +1,30 @@
 export function jsonMode(res, images) {
 
-    return res.json({
+    const imageList = images.map((img, index) => ({
+
+        id: index + 1,
+
+        original: img.original,
+
+        filename: img.file,
+
+        url: img.url,
+
+        size: img.size
+
+    }));
+
+    return res.status(200).json({
 
         success: true,
 
         mode: "json",
 
-        total: images.length,
+        total: imageList.length,
 
-        images
+        generatedAt: new Date().toISOString(),
+
+        images: imageList
 
     });
 
