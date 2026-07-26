@@ -15,61 +15,91 @@ export async function scrapeImages(pageUrl) {
 
     const images = new Set();
 
-    // img src
-    $("img").each((i, el) => {
+    function addImage(src) {
 
-        const src = $(el).attr("src");
-
-        if (src) {
-
-            try {
-                images.add(new URL(src, pageUrl).href);
-            } catch {}
-
-        }
-
-    });
-
-    // data-src
-    $("[data-src]").each((i, el) => {
-
-        const src = $(el).attr("data-src");
-
-        if (src) {
-
-            try {
-                images.add(new URL(src, pageUrl).href);
-            } catch {}
-
-        }
-
-    });
-
-    // data-original
-    $("[data-original]").each((i, el) => {
-
-        const src = $(el).attr("data-original");
-
-        if (src) {
-
-            try {
-                images.add(new URL(src, pageUrl).href);
-            } catch {}
-
-        }
-
-    });
-
-    // Open Graph image
-    const og = $('meta[property="og:image"]').attr("content");
-
-    if (og) {
+        if (!src) return;
 
         try {
-            images.add(new URL(og, pageUrl).href);
+
+            src = new URL(src, pageUrl).href;
+
+            if (
+                src.startsWith("http") &&
+                !src.startsWith("data:")
+            ) {
+
+                images.add(src);
+
+            }
+
         } catch {}
 
     }
+
+    // img src
+    $("img").each((i, el) => {
+
+        addImage($(el).attr("src"));
+
+    });
+
+    // srcset
+    $("img").each((i, el) => {
+
+        const srcset = $(el).attr("srcset");
+
+        if (!srcset) return;
+
+        srcset.split(",").forEach(item => {
+
+            addImage(item.trim().split(" ")[0]);
+
+        });
+
+    });
+
+    // lazy loading
+    [
+        "data-src",
+        "data-original",
+        "data-lazy",
+        "data-lazy-src",
+        "data-image",
+        "data-thumb",
+        "data-url"
+    ].forEach(attr => {
+
+        $(`[${attr}]`).each((i, el) => {
+
+            addImage($(el).attr(attr));
+
+        });
+
+    });
+
+    // Open Graph
+    addImage($('meta[property="og:image"]').attr("content"));
+
+    // Twitter Card
+    addImage($('meta[name="twitter:image"]').attr("content"));
+
+    // Link rel=image_src
+    addImage($('link[rel="image_src"]').attr("href"));
+
+    // CSS background images
+    $("[style]").each((i, el) => {
+
+        const style = $(el).attr("style");
+
+        const match = style?.match(/url\((.*?)\)/);
+
+        if (match) {
+
+            addImage(match[1].replace(/['"]/g, ""));
+
+        }
+
+    });
 
     return [...images];
 
