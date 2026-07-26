@@ -12,15 +12,15 @@ export function directMode(res, images) {
 
     }
 
-    // One image → redirect directly
+    // Single image → redirect directly
     if (images.length === 1) {
 
         return res.redirect(images[0].url);
 
     }
 
-    // Multiple images → return direct links
-    return res.json({
+    // Multiple images
+    return res.status(200).json({
 
         success: true,
 
@@ -28,7 +28,19 @@ export function directMode(res, images) {
 
         total: images.length,
 
-        images: images.map(img => img.url)
+        generatedAt: new Date().toISOString(),
+
+        images: images.map((img, index) => ({
+
+            id: index + 1,
+
+            url: img.url,
+
+            filename: img.file,
+
+            size: img.size
+
+        }))
 
     });
 
