@@ -4,7 +4,7 @@ import path from "path";
 const IMAGE_DIR = "public/images";
 
 // Delete files older than 30 minutes
-const MAX_AGE = 30 * 60 * 1000;
+const MAX_FILE_AGE = 30 * 60 * 1000;
 
 export async function cleanupImages() {
 
@@ -16,21 +16,35 @@ export async function cleanupImages() {
 
         const now = Date.now();
 
+        let deleted = 0;
+
         for (const file of files) {
 
-            const filepath = path.join(IMAGE_DIR, file);
+            const filePath = path.join(IMAGE_DIR, file);
 
-            const stat = await fs.stat(filepath);
+            try {
 
-            if (now - stat.mtimeMs > MAX_AGE) {
+                const stat = await fs.stat(filePath);
 
-                await fs.remove(filepath);
+                const age = now - stat.mtimeMs;
 
-                console.log("Deleted:", file);
+                if (age > MAX_FILE_AGE) {
+
+                    await fs.remove(filePath);
+
+                    deleted++;
+
+                }
+
+            } catch (err) {
+
+                console.log("Cleanup skipped:", file);
 
             }
 
         }
+
+        console.log(`Cleanup complete. Deleted ${deleted} file(s).`);
 
     } catch (err) {
 
