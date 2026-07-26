@@ -5,7 +5,73 @@ import mime from "mime-types";
 import { v4 as uuid } from "uuid";
 
 const IMAGE_DIR = "public/images";
-const MAX_PARALLEL = 200;
+const MAX_PARALLEL = 15;
+const TIMEOUT = Number(process.env.DOWNLOAD_TIMEOUT) || 30000;
+
+async function downloadSingle(url, req) {
+
+    let response;
+
+    // Retry up to 3 times
+    for (let attempt = 1; attempt <= 3; attempt++) {
+
+        try {
+
+            response = await axios({
+                url,
+                method: "GET",
+                responseType: "arraybuffer",
+                timeout: TIMEOUT,
+                maxRedirects: 5,
+                headers: {
+                    "User-Agent":
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/138 Safari/537.36",
+                    "Accept":
+                        "image/*,*/*;q=0.8"
+                }
+            });
+
+            break;
+
+        } catch (err) {
+
+            console.log(`Retry ${attempt}: ${url}`);
+
+            if (attempt === 3) {
+
+                console.log("Failed:", url);
+
+                return null;
+
+            }
+
+        }
+
+    }
+
+    let ext =
+        mime.extension(response.headers["content-type"]) ||
+        path.extname(new URL(url).pathname).replace(".", "") ||
+        "jpg";
+
+    if (!ext) ext = "jpg";
+    if (ext === "jpeg") ext = "jpg";
+
+    const filename = `${uuid()}.${ext}`;
+    const filepath = path.join(IMAGE_DIR, filename);
+
+    await fs.writeFile(filepath, response.data);
+
+    console.log("Downloaded:", filename);
+
+    return {
+        original: url,
+        file: filename,
+        url: `${req.protocol}://${req.get("host")}/images/${filename}`,
+        size: response.data.length
+    };
+
+}
 
 export async function downloadImages(imageUrls, req) {
 
@@ -17,64 +83,15 @@ export async function downloadImages(imageUrls, req) {
 
         const batch = imageUrls.slice(i, i + MAX_PARALLEL);
 
-        await Promise.all(
+        const downloaded = await Promise.all(
 
-            batch.map(async (url) => {
+            batch.map(url => downloadSingle(url, req))
 
-                try {
+        );
 
-                    const response = await axios({
+        results.push(
 
-                        url,
-                        method: "GET",
-                        responseType: "arraybuffer",
-                        timeout: Number(process.env.DOWNLOAD_TIMEOUT) || 30000,
-                        maxRedirects: 5,
-
-                        headers: {
-                            "User-Agent":
-                                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/138 Safari/537.36",
-                            "Accept": "image/*,*/*;q=0.8"
-                        }
-
-                    });
-
-                    let ext =
-                        mime.extension(response.headers["content-type"]) ||
-                        path.extname(new URL(url).pathname).replace(".", "") ||
-                        "jpg";
-
-                    if (!ext)
-                        ext = "jpg";
-
-                    if (ext === "jpeg")
-                        ext = "jpg";
-
-                    const filename = `${uuid()}.${ext}`;
-
-                    const filepath = path.join(IMAGE_DIR, filename);
-
-                    await fs.writeFile(filepath, response.data);
-
-                    const imageUrl =
-                        `${req.protocol}://${req.get("host")}/images/${filename}`;
-
-                    results.push({
-
-                        original: url,
-                        file: filename,
-                        url: imageUrl,
-                        size: response.data.length
-
-                    });
-
-                } catch (err) {
-
-                    console.log("Download failed:", url);
-
-                }
-
-            })
+            ...downloaded.filter(Boolean)
 
         );
 
