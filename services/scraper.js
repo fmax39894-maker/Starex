@@ -1,45 +1,52 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
 
+const USER_AGENT =
+"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/138.0 Safari/537.36";
+
 export async function scrapeImages(pageUrl) {
 
     const response = await axios.get(pageUrl, {
+
         timeout: 30000,
+
+        maxRedirects: 5,
+
         headers: {
-            "User-Agent":
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/138 Safari/537.36"
+            "User-Agent": USER_AGENT
         }
+
     });
 
     const $ = cheerio.load(response.data);
 
     const images = new Set();
 
-    function addImage(src) {
+    function add(src) {
 
         if (!src) return;
 
+        src = src.trim();
+
+        if (src.startsWith("data:"))
+            return;
+
         try {
 
-            src = new URL(src, pageUrl).href;
+            const absolute = new URL(src, pageUrl).href;
 
-            if (
-                src.startsWith("http") &&
-                !src.startsWith("data:")
-            ) {
+            images.add(absolute);
 
-                images.add(src);
+        }
 
-            }
-
-        } catch {}
+        catch {}
 
     }
 
     // img src
     $("img").each((i, el) => {
 
-        addImage($(el).attr("src"));
+        add($(el).attr("src"));
 
     });
 
@@ -50,16 +57,19 @@ export async function scrapeImages(pageUrl) {
 
         if (!srcset) return;
 
-        srcset.split(",").forEach(item => {
+        srcset.split(",")
 
-            addImage(item.trim().split(" ")[0]);
+            .forEach(item => {
 
-        });
+                add(item.trim().split(" ")[0]);
+
+            });
 
     });
 
-    // lazy loading
-    [
+    // Lazy loading attributes
+    const attrs = [
+
         "data-src",
         "data-original",
         "data-lazy",
@@ -67,37 +77,59 @@ export async function scrapeImages(pageUrl) {
         "data-image",
         "data-thumb",
         "data-url"
-    ].forEach(attr => {
+
+    ];
+
+    attrs.forEach(attr => {
 
         $(`[${attr}]`).each((i, el) => {
 
-            addImage($(el).attr(attr));
+            add($(el).attr(attr));
 
         });
 
     });
 
     // Open Graph
-    addImage($('meta[property="og:image"]').attr("content"));
+    add($('meta[property="og:image"]').attr("content"));
 
     // Twitter Card
-    addImage($('meta[name="twitter:image"]').attr("content"));
+    add($('meta[name="twitter:image"]').attr("content"));
 
-    // Link rel=image_src
-    addImage($('link[rel="image_src"]').attr("href"));
+    // Image Source
+    add($('link[rel="image_src"]').attr("href"));
 
     // CSS background images
     $("[style]").each((i, el) => {
 
         const style = $(el).attr("style");
 
-        const match = style?.match(/url\((.*?)\)/);
+        if (!style) return;
+
+        const match = style.match(/url\((.*?)\)/);
 
         if (match) {
 
-            addImage(match[1].replace(/['"]/g, ""));
+            add(match[1].replace(/['"]/g, ""));
 
         }
+
+    });
+
+    // Picture source
+    $("source").each((i, el) => {
+
+        add($(el).attr("srcset"));
+
+    });
+
+    // Meta itemprop image
+    add($('meta[itemprop="image"]').attr("content"));
+
+    // Link preload image
+    $('link[as="image"]').each((i, el) => {
+
+        add($(el).attr("href"));
 
     });
 
