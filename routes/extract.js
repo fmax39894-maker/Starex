@@ -40,23 +40,27 @@ router.get("/", async (req, res) => {
 
         }
 
-        let allImages = [];
+        const scrapeResults = await Promise.allSettled(
 
-        for (const website of validUrls) {
+    validUrls.map(url => scrapeImages(url))
 
-            try {
+);
 
-                const images = await scrapeImages(website);
+let allImages = [];
 
-                allImages.push(...images);
+for (const result of scrapeResults) {
 
-            } catch (err) {
+    if (result.status === "fulfilled") {
 
-                console.log(`Failed to scrape: ${website}`);
+        allImages.push(...result.value);
 
-            }
+    } else {
 
-        }
+        console.log("Scrape failed:", result.reason?.message);
+
+    }
+
+}
 
         // Remove duplicates
         allImages = [...new Set(allImages)];
