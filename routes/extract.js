@@ -2,6 +2,7 @@ import express from "express";
 
 import { validateUrls } from "../utils/validator.js";
 import { scrapeImages } from "../services/scraper.js";
+import { downloadImages } from "../services/downloader.js";
 import { jsonMode } from "../services/jsonMode.js";
 import { directMode } from "../services/directMode.js";
 
@@ -17,17 +18,15 @@ router.get("/", async (req, res) => {
         if (!input) {
 
             return res.status(400).json({
-
                 success: false,
                 error: "Missing 'url' parameter"
-
             });
 
         }
 
         const urls = input
             .split(",")
-            .map(u => u.trim())
+            .map(url => url.trim())
             .filter(Boolean);
 
         const validUrls = validateUrls(urls);
@@ -35,10 +34,8 @@ router.get("/", async (req, res) => {
         if (validUrls.length === 0) {
 
             return res.status(400).json({
-
                 success: false,
                 error: "No valid URLs found"
-
             });
 
         }
@@ -53,32 +50,45 @@ router.get("/", async (req, res) => {
 
                 allImages.push(...images);
 
-            } catch (e) {
+            } catch (err) {
 
-                console.log("Skipped:", website);
+                console.log(`Failed to scrape: ${website}`);
 
             }
 
         }
 
+        // Remove duplicates
         allImages = [...new Set(allImages)];
 
-        if (mode === "direct") {
+        if (allImages.length === 0) {
 
-            return directMode(res, allImages);
+            return res.status(404).json({
+                success: false,
+                error: "No images found."
+            });
 
         }
 
-        return jsonMode(res, allImages);
+        // Download all images
+        const downloadedImages = await downloadImages(allImages, req);
+
+        if (mode === "direct") {
+
+            return directMode(res, downloadedImages);
+
+        }
+
+        return jsonMode(res, downloadedImages);
 
     } catch (err) {
 
         console.error(err);
 
-        res.status(500).json({
+        return res.status(500).json({
 
             success: false,
-            error: err.message
+            error: err.message || "Internal Server Error"
 
         });
 
